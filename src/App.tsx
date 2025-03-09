@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { Document, Page, PDFDownloadLink, pdf, BlobProvider } from '@react-pdf/renderer';
+import { Document, Page, pdf, BlobProvider, StyleSheet, View } from '@react-pdf/renderer';
 import { Image } from '@react-pdf/renderer';
 
 function App() {
@@ -104,11 +104,35 @@ function App() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Create styles for PDF
+  const styles = StyleSheet.create({
+    page: {
+      flexDirection: 'column',
+      backgroundColor: '#ffffff',
+      padding: 0,
+      margin: 0
+    },
+    imageContainer: {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    image: {
+      objectFit: 'contain',
+      maxWidth: '100%',
+      maxHeight: '100%'
+    }
+  });
+
   const PDFDocument = () => (
     <Document>
       {images.map(image => (
-        <Page key={image.id}>
-          <Image src={image.url} />
+        <Page key={image.id} size="A4" style={styles.page}>
+          <View style={styles.imageContainer}>
+            <Image src={image.url} style={styles.image} />
+          </View>
         </Page>
       ))}
     </Document>
@@ -116,6 +140,26 @@ function App() {
 
   const handleDownloadPDF = async () => {
     try {
+      // Show loading state
+      setUploading(true);
+      
+      // Pre-process images to ensure they're loaded properly
+      const imagePromises = images.map(image => {
+        return new Promise((resolve, reject) => {
+          const img = new window.Image();
+          img.onload = () => resolve(true);
+          img.onerror = () => reject(new Error(`Failed to load image: ${image.id}`));
+          img.src = image.url;
+        });
+      });
+      
+      try {
+        await Promise.all(imagePromises);
+      } catch (err) {
+        console.error('Error pre-loading images:', err);
+        // Continue anyway, as some images might still work
+      }
+      
       // Generate the PDF blob
       const blob = await pdf(<PDFDocument />).toBlob();
       
@@ -143,6 +187,8 @@ function App() {
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('There was an error generating the PDF. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -306,14 +352,26 @@ function App() {
 
                 <button
                   onClick={handleDownloadPDF}
+                  disabled={uploading}
                   className={`inline-flex w-full min-h-[44px] items-center justify-center gap-2 px-4 py-2 ${
                     darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
                   } text-white rounded-lg transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <Download className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-sm sm:text-base whitespace-nowrap">
-                    Download PDF
-                  </span>
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />
+                      <span className="text-sm sm:text-base whitespace-nowrap">
+                        Generating PDF...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-5 h-5 flex-shrink-0" />
+                      <span className="text-sm sm:text-base whitespace-nowrap">
+                        Download PDF
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
