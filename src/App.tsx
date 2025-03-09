@@ -13,8 +13,8 @@ function App() {
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-  const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
 
   const getTotalSize = () => images.reduce((acc, img) => acc + img.size, 0);
 
@@ -29,7 +29,7 @@ function App() {
     
     const newTotalSize = getTotalSize() + files.reduce((acc, file) => acc + file.size, 0);
     if (newTotalSize > MAX_TOTAL_SIZE) {
-      setError('Total file size exceeds 20MB limit');
+      setError('Total file size exceeds 50MB limit');
       setUploading(false);
       return;
     }
@@ -40,7 +40,7 @@ function App() {
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        setError('Individual image size should be less than 5MB');
+        setError('Individual image size should be less than 10MB');
         continue;
       }
 

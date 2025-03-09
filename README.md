@@ -38,8 +38,8 @@ A simple web application that allows users to convert images to PDF format easil
 
 ## Limitations
 
-- Maximum individual file size: 5MB
-- Maximum total size: 20MB
+- Maximum individual file size: 10MB
+- Maximum total size: 50MB
 - Only accepts image files
 
 ## Deployment
