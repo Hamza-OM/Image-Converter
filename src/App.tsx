@@ -323,7 +323,7 @@ function App() {
         <div className="text-center mt-6">
           <p className={`text-sm ${
             darkMode ? 'text-gray-400' : 'text-gray-500'
-          }`}>made by hamzaalsiyabi</p>
+          }`}>made by @hamzaalsiyabi</p>
         </div>
       </div>
     </div>
