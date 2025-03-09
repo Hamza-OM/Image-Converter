@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { Document, Page, PDFDownloadLink, pdf } from '@react-pdf/renderer';
+import { Document, Page, PDFDownloadLink, pdf, BlobProvider } from '@react-pdf/renderer';
 import { Image } from '@react-pdf/renderer';
 
 function App() {
@@ -113,6 +113,38 @@ function App() {
       ))}
     </Document>
   );
+
+  const handleDownloadPDF = async () => {
+    try {
+      // Generate the PDF blob
+      const blob = await pdf(<PDFDocument />).toBlob();
+      
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob);
+      
+      // Create an anchor element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName || 'converted-images'}.pdf`;
+      
+      // iOS Safari doesn't support the download attribute
+      // So we need to open it in a new tab
+      if (/(iPad|iPhone|iPod)/g.test(navigator.userAgent)) {
+        window.open(url, '_blank');
+      } else {
+        // For other browsers, trigger a download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+      // Clean up the URL object
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('There was an error generating the PDF. Please try again.');
+    }
+  };
 
   const totalSize = getTotalSize();
   const sizePercentage = (totalSize / MAX_TOTAL_SIZE) * 100;
@@ -272,9 +304,8 @@ function App() {
                   }`}
                 />
 
-                <PDFDownloadLink
-                  document={<PDFDocument />}
-                  fileName={`${fileName || 'converted-images'}.pdf`}
+                <button
+                  onClick={handleDownloadPDF}
                   className={`inline-flex w-full min-h-[44px] items-center justify-center gap-2 px-4 py-2 ${
                     darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'
                   } text-white rounded-lg transition-colors touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -283,7 +314,7 @@ function App() {
                   <span className="text-sm sm:text-base whitespace-nowrap">
                     Download PDF
                   </span>
-                </PDFDownloadLink>
+                </button>
               </div>
             </div>
           )}
