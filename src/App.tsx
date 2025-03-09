@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Document, Page, pdf, StyleSheet, View } from '@react-pdf/renderer';
 import { Image } from '@react-pdf/renderer';
@@ -12,6 +12,9 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => 
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const downloadLinkRef = useRef<HTMLAnchorElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
@@ -164,11 +167,33 @@ function App() {
     });
   };
 
+  // Function to detect mobile device
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
+  // Function to detect iOS device
+  const isIOSDevice = () => {
+    return /iPad|iPhone|iPod/i.test(navigator.userAgent);
+  };
+
+  // Function to detect Safari browser
+  const isSafariBrowser = () => {
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  };
+
+  // Function to handle PDF download
   const handleDownloadPDF = async () => {
     try {
       // Show loading state
       setUploading(true);
       setError(null);
+      
+      // Clear any previous PDF URL
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl(null);
+      }
       
       // Pre-process all images to PNG format
       const processedImages = await Promise.all(
@@ -207,25 +232,29 @@ function App() {
       
       // Create a URL for the blob
       const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
       
-      // Create an anchor element
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${fileName || 'converted-images'}.pdf`;
-      
-      // iOS Safari doesn't support the download attribute
-      // So we need to open it in a new tab
-      if (/(iPad|iPhone|iPod)/g.test(navigator.userAgent)) {
-        window.open(url, '_blank');
+      // Different handling based on device and browser
+      if (isMobileDevice()) {
+        if (isIOSDevice()) {
+          // For iOS devices
+          window.open(url, '_blank');
+        } else {
+          // For Android and other mobile devices
+          if (downloadLinkRef.current) {
+            downloadLinkRef.current.href = url;
+            downloadLinkRef.current.download = `${fileName || 'converted-images'}.pdf`;
+            downloadLinkRef.current.click();
+          }
+        }
       } else {
-        // For other browsers, trigger a download
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // For desktop browsers
+        if (downloadLinkRef.current) {
+          downloadLinkRef.current.href = url;
+          downloadLinkRef.current.download = `${fileName || 'converted-images'}.pdf`;
+          downloadLinkRef.current.click();
+        }
       }
-      
-      // Clean up the URL object
-      setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch (error) {
       console.error('Error generating PDF:', error);
       setError('There was an error generating the PDF. Please try again.');
@@ -419,6 +448,20 @@ function App() {
             </div>
           )}
         </div>
+        
+        {/* Hidden elements for downloads */}
+        <a 
+          ref={downloadLinkRef} 
+          style={{ display: 'none' }}
+          href="#"
+          download="converted-images.pdf"
+        />
+        
+        {pdfUrl && isIOSDevice() && (
+          <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm">
+            <p>If the PDF didn't open automatically, <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="underline font-bold">click here</a> to view it.</p>
+          </div>
+        )}
         
         <div className="text-center mt-6">
           <p className={`text-sm ${
