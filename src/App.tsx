@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Document, Page, pdf, StyleSheet, View } from '@react-pdf/renderer';
 import { Image } from '@react-pdf/renderer';
@@ -15,6 +15,7 @@ function App() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const downloadLinkRef = useRef<HTMLAnchorElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const newWindowRef = useRef<Window | null>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
@@ -182,6 +183,27 @@ function App() {
     return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   };
 
+  // Effect to handle PDF opening in iOS
+  useEffect(() => {
+    if (pdfUrl && isIOSDevice()) {
+      // Open in a new window
+      newWindowRef.current = window.open(pdfUrl, '_blank');
+      
+      // If window.open was blocked or failed, we'll still have the fallback link
+      if (!newWindowRef.current) {
+        console.error('Failed to open PDF in new window. Popup might be blocked.');
+      }
+    }
+    
+    // Cleanup function
+    return () => {
+      if (pdfUrl) {
+        // Revoke the object URL when component unmounts or pdfUrl changes
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
   // Function to handle PDF download
   const handleDownloadPDF = async () => {
     try {
@@ -232,29 +254,20 @@ function App() {
       
       // Create a URL for the blob
       const url = URL.createObjectURL(blob);
+      
+      // Store the URL in state - this will trigger the useEffect
       setPdfUrl(url);
       
-      // Different handling based on device and browser
-      if (isMobileDevice()) {
-        if (isIOSDevice()) {
-          // For iOS devices
-          window.open(url, '_blank');
-        } else {
-          // For Android and other mobile devices
-          if (downloadLinkRef.current) {
-            downloadLinkRef.current.href = url;
-            downloadLinkRef.current.download = `${fileName || 'converted-images'}.pdf`;
-            downloadLinkRef.current.click();
-          }
-        }
-      } else {
-        // For desktop browsers
+      // For non-iOS devices, use the standard download approach
+      if (!isIOSDevice()) {
         if (downloadLinkRef.current) {
           downloadLinkRef.current.href = url;
           downloadLinkRef.current.download = `${fileName || 'converted-images'}.pdf`;
           downloadLinkRef.current.click();
         }
       }
+      // For iOS devices, the useEffect will handle opening the PDF
+      
     } catch (error) {
       console.error('Error generating PDF:', error);
       setError('There was an error generating the PDF. Please try again.');
@@ -457,7 +470,7 @@ function App() {
           download="converted-images.pdf"
         />
         
-        {pdfUrl && isIOSDevice() && (
+        {pdfUrl && isIOSDevice() && !newWindowRef.current && (
           <div className="mt-4 p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm">
             <p>If the PDF didn't open automatically, <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="underline font-bold">click here</a> to view it.</p>
           </div>
