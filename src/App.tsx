@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2, Bug } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { FileImage, Upload, Download, Moon, Sun, X, ArrowUp, ArrowDown, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Document, Page, pdf, StyleSheet, View } from '@react-pdf/renderer';
 import { Image } from '@react-pdf/renderer';
 
@@ -12,8 +12,6 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => 
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
-  const [debugMode, setDebugMode] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB
@@ -128,24 +126,13 @@ function App() {
     }
   });
 
-  // Function to add debug information
-  const addDebugInfo = (info: string) => {
-    if (debugMode) {
-      console.log(info);
-      setDebugInfo(prev => [...prev, info]);
-    }
-  };
-
   // Function to convert any image to PNG format
   const convertImageToPNG = async (imageUrl) => {
-    addDebugInfo(`Starting conversion for image URL: ${imageUrl.substring(0, 30)}...`);
-    
     return new Promise((resolve, reject) => {
       const img = new window.Image();
       img.crossOrigin = 'Anonymous';
       
       img.onload = () => {
-        addDebugInfo(`Image loaded successfully, dimensions: ${img.width}x${img.height}`);
         try {
           // Create a canvas to draw the image
           const canvas = document.createElement('canvas');
@@ -159,54 +146,40 @@ function App() {
           ctx.drawImage(img, 0, 0);
           
           // Convert to PNG format
-          addDebugInfo(`Converting to PNG...`);
           const pngUrl = canvas.toDataURL('image/png');
-          addDebugInfo(`Conversion successful, PNG data URL length: ${pngUrl.length}`);
           resolve(pngUrl);
         } catch (err) {
-          addDebugInfo(`Error converting image to PNG: ${err.message}`);
           console.error('Error converting image to PNG:', err);
           resolve(imageUrl); // Fall back to original if conversion fails
         }
       };
       
-      img.onerror = (err) => {
-        addDebugInfo(`Error loading image: ${err}`);
+      img.onerror = () => {
         console.error('Error loading image for conversion');
         resolve(imageUrl); // Fall back to original if loading fails
       };
       
       // Set the source to start loading
-      addDebugInfo(`Setting image source to start loading...`);
       img.src = imageUrl;
     });
   };
 
   const handleDownloadPDF = async () => {
     try {
-      // Reset debug info
-      setDebugInfo([]);
-      
       // Show loading state
       setUploading(true);
       setError(null);
       
-      addDebugInfo(`Starting PDF generation process with ${images.length} images`);
-      
       // Pre-process all images to PNG format
-      addDebugInfo(`Converting all images to PNG format...`);
       const processedImages = await Promise.all(
-        images.map(async (image, index) => {
+        images.map(async (image) => {
           try {
-            addDebugInfo(`Processing image ${index + 1}/${images.length} (ID: ${image.id})`);
             const processedUrl = await convertImageToPNG(image.url);
-            addDebugInfo(`Image ${index + 1} processed successfully`);
             return {
               ...image,
               processedUrl
             };
           } catch (err) {
-            addDebugInfo(`Error processing image ${index + 1}: ${err.message}`);
             console.error(`Error processing image ${image.id}:`, err);
             return {
               ...image,
@@ -216,81 +189,44 @@ function App() {
         })
       );
       
-      addDebugInfo(`All images processed, creating PDF document...`);
-      
       // Create a modified PDFDocument component with processed images
       const ProcessedPDFDocument = () => (
         <Document>
-          {processedImages.map((image, index) => {
-            addDebugInfo(`Adding image ${index + 1} to PDF`);
-            return (
-              <Page key={image.id} size="A4" style={styles.page}>
-                <View style={styles.imageContainer}>
-                  <Image src={image.processedUrl} style={styles.image} />
-                </View>
-              </Page>
-            );
-          })}
+          {processedImages.map(image => (
+            <Page key={image.id} size="A4" style={styles.page}>
+              <View style={styles.imageContainer}>
+                <Image src={image.processedUrl} style={styles.image} />
+              </View>
+            </Page>
+          ))}
         </Document>
       );
       
       // Generate the PDF blob
-      addDebugInfo(`Generating PDF blob...`);
       const blob = await pdf(<ProcessedPDFDocument />).toBlob();
-      addDebugInfo(`PDF blob generated successfully, size: ${blob.size} bytes`);
       
       // Create a URL for the blob
       const url = URL.createObjectURL(blob);
-      addDebugInfo(`Created object URL for PDF: ${url}`);
       
-      // iOS Safari handling
+      // Create an anchor element
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${fileName || 'converted-images'}.pdf`;
+      
+      // iOS Safari doesn't support the download attribute
+      // So we need to open it in a new tab
       if (/(iPad|iPhone|iPod)/g.test(navigator.userAgent)) {
-        addDebugInfo(`Detected iOS device, using special handling`);
-        
-        try {
-          // Create a temporary iframe for iOS
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          document.body.appendChild(iframe);
-          
-          // Write the PDF to the iframe
-          iframe.contentWindow.document.open();
-          iframe.contentWindow.document.write(
-            `<html><body style="margin:0;padding:0;">
-              <embed width="100%" height="100%" src="${url}" type="application/pdf"/>
-            </body></html>`
-          );
-          iframe.contentWindow.document.close();
-          
-          addDebugInfo(`PDF opened in iframe for iOS`);
-          
-          // Also try direct window open as fallback
-          setTimeout(() => {
-            addDebugInfo(`Attempting direct window open as fallback`);
-            window.open(url, '_blank');
-          }, 100);
-        } catch (err) {
-          addDebugInfo(`Error with iframe approach: ${err.message}, trying direct open`);
-          window.open(url, '_blank');
-        }
+        window.open(url, '_blank');
       } else {
         // For other browsers, trigger a download
-        addDebugInfo(`Triggering download for non-iOS device`);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${fileName || 'converted-images'}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
       
       // Clean up the URL object
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-        addDebugInfo(`Revoked object URL`);
-      }, 1000); // Increased timeout to ensure iOS has time to use the URL
+      setTimeout(() => URL.revokeObjectURL(url), 100);
     } catch (error) {
-      addDebugInfo(`Error in PDF generation: ${error.message}`);
       console.error('Error generating PDF:', error);
       setError('There was an error generating the PDF. Please try again.');
     } finally {
@@ -310,20 +246,6 @@ function App() {
         } shadow-lg`}
       >
         {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
-
-      <button
-        onClick={() => setDebugMode(prev => !prev)}
-        className={`absolute top-4 left-4 p-2 rounded-full ${
-          debugMode 
-            ? 'bg-green-500 text-white' 
-            : darkMode 
-              ? 'bg-gray-800 text-gray-200' 
-              : 'bg-white text-gray-800'
-        } shadow-lg`}
-        title="Toggle Debug Mode"
-      >
-        <Bug className="w-5 h-5" />
       </button>
 
       <div className={`${
@@ -497,17 +419,6 @@ function App() {
             </div>
           )}
         </div>
-        
-        {debugMode && debugInfo.length > 0 && (
-          <div className="mt-4 p-3 bg-gray-900 text-gray-300 rounded-lg text-xs overflow-auto max-h-60">
-            <h3 className="font-bold mb-2">Debug Information:</h3>
-            <ul className="space-y-1">
-              {debugInfo.map((info, index) => (
-                <li key={index}>{info}</li>
-              ))}
-            </ul>
-          </div>
-        )}
         
         <div className="text-center mt-6">
           <p className={`text-sm ${
