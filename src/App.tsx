@@ -243,19 +243,42 @@ function App() {
       const url = URL.createObjectURL(blob);
       addDebugInfo(`Created object URL for PDF: ${url}`);
       
-      // Create an anchor element
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${fileName || 'converted-images'}.pdf`;
-      
-      // iOS Safari doesn't support the download attribute
-      // So we need to open it in a new tab
+      // iOS Safari handling
       if (/(iPad|iPhone|iPod)/g.test(navigator.userAgent)) {
-        addDebugInfo(`Detected iOS device, opening in new tab`);
-        window.open(url, '_blank');
+        addDebugInfo(`Detected iOS device, using special handling`);
+        
+        try {
+          // Create a temporary iframe for iOS
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          
+          // Write the PDF to the iframe
+          iframe.contentWindow.document.open();
+          iframe.contentWindow.document.write(
+            `<html><body style="margin:0;padding:0;">
+              <embed width="100%" height="100%" src="${url}" type="application/pdf"/>
+            </body></html>`
+          );
+          iframe.contentWindow.document.close();
+          
+          addDebugInfo(`PDF opened in iframe for iOS`);
+          
+          // Also try direct window open as fallback
+          setTimeout(() => {
+            addDebugInfo(`Attempting direct window open as fallback`);
+            window.open(url, '_blank');
+          }, 100);
+        } catch (err) {
+          addDebugInfo(`Error with iframe approach: ${err.message}, trying direct open`);
+          window.open(url, '_blank');
+        }
       } else {
         // For other browsers, trigger a download
         addDebugInfo(`Triggering download for non-iOS device`);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${fileName || 'converted-images'}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -265,7 +288,7 @@ function App() {
       setTimeout(() => {
         URL.revokeObjectURL(url);
         addDebugInfo(`Revoked object URL`);
-      }, 100);
+      }, 1000); // Increased timeout to ensure iOS has time to use the URL
     } catch (error) {
       addDebugInfo(`Error in PDF generation: ${error.message}`);
       console.error('Error generating PDF:', error);
