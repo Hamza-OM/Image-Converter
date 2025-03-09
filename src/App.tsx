@@ -185,7 +185,6 @@ function App() {
                 accept="image/*"
                 onChange={handleImageChange}
                 multiple
-                capture="environment"
                 disabled={uploading}
               />
             </label>
